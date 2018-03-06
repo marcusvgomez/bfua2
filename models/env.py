@@ -14,7 +14,7 @@ STATE_DIM = 6# 2(for position) + 2(for velocity) + 2(for gaze) + NO(1(for color)
 ACTION_DIM = 4 # 2 (for velocity) + 2(for gaze)
 
 class env:
-    def __init__(self, num_agents, num_landmarks, timestep=0.1, damping_coef=0.5, is_cuda = False, minibatch_size=5, num_gpus = 2):
+    def __init__(self, num_agents, num_landmarks, timestep=0.1, damping_coef=0.5, is_cuda = False, minibatch_size=1024, num_gpus = 2):
         self.num_agents = num_agents
         self.num_landmarks = num_landmarks
         self.timestep = timestep #delta t

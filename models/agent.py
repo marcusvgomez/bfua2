@@ -44,7 +44,7 @@ class agent(nn.Module):
                  hidden_input_size, input_output_size,
                  hidden_output_size, action_dim = ACTION_DIM,
                  memory_size = 32, goal_size = 6, is_cuda = False, dropout_prob = 0.0,
-                 is_goal_predicting = False, minibatch_size = 5, num_gpus = 2):
+                 is_goal_predicting = False, minibatch_size = 1024, num_gpus = 2):
         super(agent, self).__init__()
         self.num_agents = num_agents
         self.num_landmarks = num_landmarks

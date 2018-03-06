@@ -6,7 +6,7 @@ facilitates their training (via computing reward
 and evaluating performance) and interaction with
 the environment
 '''
-
+import random
 import numpy as np
 import torch
 from torch.autograd import Variable
@@ -201,7 +201,7 @@ class Controller():
                 for i in range(self.N):
                     action_type = np.random.randint(0, 3) # either go-to, look-at, or do-nothing
                     x, y = np.random.uniform(-20.0, 20.0, size=(2,)) # TODO: have clearer bounds in env so these coordinates mean something
-                    target_agent = random.sample(agents_unused,1)
+                    target_agent = random.sample(agents_unused,1)[0]
                     agents_unused.remove(target_agent)
             
                     goals[j,action_type,i] = 1
@@ -309,7 +309,7 @@ class Controller():
             # print self.env.expose_world_state()[0]
             if iter_ == t - 1: 
                 # if self.GLOBAL_ITER % 100 == 99:
-                print self.env.expose_world_state()[0]
+                #print self.env.expose_world_state()[0]
                 self.step(debug=True, is_training = is_training)
             else:
                 self.step(is_training = is_training)

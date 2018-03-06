@@ -42,7 +42,8 @@ import gc
 def getTime():
     return datetime.datetime.now().strftime("%d-%H-%M-%s")
 
-save_path = '/cvgl2/u/bcui/cs234/results/'
+#save_path = '/cvgl2/u/bcui/cs234/results/'
+save_path = "./results/"
 # model_name = 'communication_vision_non_adversarial'
 model_name = 'full_experiment_minibatch'
 currTime = getTime()
@@ -165,9 +166,9 @@ def main():
 
             loss.append(epoch_loss)
 
-            # if epoch % 50 == 0:
-                 # save_model(controller.agent_trainable, optimizer, epoch, min_loss, is_best = total_loss.data[0] < save_loss)
-                 # save_loss = min(save_loss, total_loss.data[0])
+            if epoch % 50 == 0:
+                 save_model(controller.agent_trainable, optimizer, epoch, min_loss, is_best = total_loss.data[0] < save_loss)
+                 save_loss = min(save_loss, total_loss.data[0])
 
             #only runs if we are using optimizer decay
             # if total_loss.data[0] < max_loss and args.optimizer_decay:
