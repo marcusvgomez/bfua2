@@ -6,7 +6,7 @@ facilitates their training (via computing reward
 and evaluating performance) and interaction with
 the environment
 '''
-
+import random
 import numpy as np
 import torch
 from torch.autograd import Variable
@@ -143,15 +143,15 @@ class Controller():
     def update_prediction_loss(self, predictions):
         goals = self.G ## goal x N
         ret = 0.0
-        # ret_list = torch.cat([torch.norm(predictions[k,i,:j] - goals[k:,j])for k in range(self.minibatch_size) for i in range(self.N) for j in range(self.N) if i != j ])
-        # ret = ret_list.sum()
-        for k in range(self.minibatch_size):
-            for i in range(self.N):
-                for j in range(self.N):
-                    if i == j: continue
-                    i_prediction_j = predictions[k,i,:,j]
-                    j_true = goals[k,:,j]
-                    ret += torch.norm(i_prediction_j - j_true)
+        ret_list = torch.cat([torch.norm(predictions[k,i,:,j] - goals[k,:,j]) for k in range(self.minibatch_size) for i in range(self.N) for j in range(self.N) if i != j ])
+        ret = ret_list.sum()
+        # for k in range(self.minibatch_size):
+            # for i in range(self.N):
+                # for j in range(self.N):
+                    # if i == j: continue
+                    # i_prediction_j = predictions[k,i,:,j]
+                    # j_true = goals[k,:,j]
+                    # ret += torch.norm(i_prediction_j - j_true)
         self.G_loss =  -1.0 * ret
     
     def compute_prediction_loss(self): return self.G_loss
@@ -309,7 +309,7 @@ class Controller():
             # print self.env.expose_world_state()[0]
             if iter_ == t - 1: 
                 # if self.GLOBAL_ITER % 100 == 99:
-                print self.env.expose_world_state()[0]
+                # print self.env.expose_world_state()[0]
                 self.step(debug=True, is_training = is_training)
             else:
                 self.step(is_training = is_training)

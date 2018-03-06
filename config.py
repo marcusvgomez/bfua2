@@ -31,7 +31,7 @@ class RuntimeConfig:
 
         #preset network parameters these are somewhat hard coded into agent
         self.memory_size = 32 if 'memory_size' not in args else args['memory_size'] #this is used for both memory tensors
-        self.minibatch_size = 5
+        self.minibatch_size = 1024
         self.num_gpus = 2
 
 
@@ -41,4 +41,4 @@ class RuntimeConfig:
         self.optimizer_decay_rate = 5 if 'optimizer-decay-rate' not in args else args['optimizer-decay-rate']
         self.dropout = 0 if 'dropout' not in args else args['dropout']
         self.dirichlet_alpha = 0.01 if 'dirichlet-alpha' not in args else args['dirichlet-alpha']
-        self.deterministic_goals = True if 'deterministic-goals' not in args else args['deterministic-goals']
+        self.deterministic_goals = False if 'deterministic-goals' not in args else args['deterministic-goals']
