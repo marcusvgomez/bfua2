@@ -94,12 +94,14 @@ def main():
     #this needs to be fixed
     controller = Controller(runtime_config)
     parameters = ifilter(lambda p :p.requires_grad, controller.agent_trainable.parameters())
-    optimizer = optim.Adam(parameters, lr = 0.0001)
+    optimizer = optim.Adam(parameters, lr = 0.00025)
 #    optimizer = optim.Adam(controller.agent_trainable.parameters())
     
     ## TODO: write train code
 
-
+#    for j, param in enumerate(controller.agent_trainable.parameters()):
+#        print param, j
+#    assert False
 
     for i in range(50008):
 

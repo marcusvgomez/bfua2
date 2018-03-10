@@ -63,7 +63,12 @@ class agent(nn.Module):
                         print "I is: ", i
                         self.communication_cells.append(nn.Linear(hidden_size, hidden_size))
                         self.hidden_cells.append(nn.Linear(hidden_size, hidden_size))
-                        self.skip_matrices.append(nn.Linear(3*hidden_size, hidden_size))
+                        self.skip_matrices.append(nn.Sequential(
+                                nn.Linear(3*hidden_size, 2*hidden_size), 
+                                nn.ReLU(),
+                                nn.Linear(2*hidden_size, hidden_size),
+                                nn.ReLU()
+                                ))
 
                 self.communication_cells = nn.ModuleList(self.communication_cells)
                 self.hidden_cells = nn.ModuleList(self.hidden_cells)
@@ -92,7 +97,7 @@ class agent(nn.Module):
 #                curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_actions, 1)
 #                curr_comm -= init_hidden
 #                curr_comm /= (self.num_actions-1)
-                curr_comm = Variable(torch.zeros(self.minibatch_size, self.num_actions, self.hidden_size))
+                curr_comm = Variable(torch.zeros(self.minibatch_size, self.num_actions, self.hidden_size)).cuda()
 
 
                 curr_hidden = init_hidden
@@ -112,10 +117,11 @@ class agent(nn.Module):
                             #curr_hidden = self.activation_fn(torch. 
 				#curr_hidden = self.activation_fn(curr_hidden + curr_comm)
 
-			temp_comm = curr_hidden.sum(dim = 1)
-			curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_actions, 1)
-                        curr_comm -= curr_hidden
-                        curr_comm /= (self.num_actions-1)
+			#temp_comm = curr_hidden.sum(dim = 1)
+			#curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_actions, 1)
+                        #curr_comm -= curr_hidden
+                        #curr_comm /= (self.num_actions-1)
+                        curr_comm = Variable(torch.zeros(self.minibatch_size, self.num_actions, self.hidden_size)).cuda()
 
 		actions = self.hidden_to_actions(curr_hidden)
 		advantage = self.hidden_to_advantage(curr_hidden)

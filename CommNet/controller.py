@@ -20,6 +20,7 @@ class Controller:
                 self.agent = agent
 
 		self.agent_trainable = self.agent(num_agents = self.M, num_actions = self.A, minibatch_size = self.minibatch_size)
+                self.agent_trainable.cuda()
 
                 self.initializeParameters()
 
@@ -35,7 +36,7 @@ class Controller:
 	#the states should be of shape (minibatch_size, num_agents)
 	#MAKE SURE THE SHAPING IS RIGHT 
 	def run(self):
-            states = Variable(self.env.get_initial_state())
+            states = Variable(self.env.get_initial_state()).cuda()
             action_list, advantage = self.agent_trainable(states.long())
             reward = self.env.get_reward(action_list)
             
@@ -52,12 +53,12 @@ class Controller:
                 currAdvantage = advantage[i]
 
 
-                prob_scaling = Variable(currReward - currAdvantage.data, requires_grad = False)
+                prob_scaling = Variable(currReward.cuda() - currAdvantage.data, requires_grad = False).cuda()
                 prob_loss = (action_list[i][1] * prob_scaling).sum()
 
 #                print action_list[i][1]
                 
-                currReward_var = Variable(currReward, requires_grad = True)
+                currReward_var = Variable(currReward, requires_grad = True).cuda()
                 reward_loss = alpha * (currReward_var - currAdvantage)**2
                 
                 loss += (prob_loss - reward_loss)
