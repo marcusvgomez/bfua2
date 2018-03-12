@@ -4,6 +4,7 @@ from torch.autograd import Variable
 import torch.optim as optim
 from agent import *
 from env import Levers
+from env import Traffic 
 
 from agent import agent
 
@@ -24,7 +25,11 @@ class Controller:
 
                 self.initializeParameters()
 
-                self.env = Levers(num_agents=self.M, num_samples=self.A, minibatch_size = self.minibatch_size) 
+                if runtime_config.env == "traffic":
+                    self.env = Traffic()
+                else:
+                    self.env = Levers(num_agents=self.M, num_samples=self.A, minibatch_size = self.minibatch_size) 
+
 
         def initializeParameters(self):
             return

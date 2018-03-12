@@ -31,3 +31,6 @@ class RuntimeConfig:
         self.optimizer_decay = float("-inf") if 'optimizer-decay-epoch' not in args else args['optimizer-decay']
         self.optimizer_decay_rate = 5 if 'optimizer-decay-rate' not in args else args['optimizer-decay-rate']
         self.dropout = 0 if 'dropout' not in args else args['dropout']
+
+        self.env = "Levers" if 'env' not in args else args['env']
+
