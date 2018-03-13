@@ -168,7 +168,7 @@ class Traffic:
 def main():
     traffic_sim = Traffic(minibatch_size=288)
     actions = np.ones((288,10))
-    print traffic_sim.step_init()[0][0].shape
+    print (traffic_sim.step_init()[0][0].shape)
     for i in range(40): traffic_sim.step_forward(actions)
 
 if __name__ == "__main__": main()
