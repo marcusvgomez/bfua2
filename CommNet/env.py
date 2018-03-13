@@ -35,6 +35,30 @@ class Levers:
             reward[i] = 1.*len(np.unique(actions[i][0])) / self.m
         return reward
 
+def format_states(elem):
+    Nmax, mb_agents, old_state = elem
+    to_ret = np.zeros((Nmax, 218))
+    for agent in mb_agents:
+        idx, loc, route, _, _ = agent
+        r = np.zeros((3))
+        r[route] = 1.0
+        l = np.zeros((196))
+        l[loc[0]*14 + loc[1]] = 1.0
+        n = np.zeros((Nmax))
+        n[idx] = 1.0
+        visible = np.zeros((3,3))
+        for i in range(-1, 2, 1):
+            if (i + loc[0]) < 0: continue 
+            if (i + loc[0]) > 13: continue
+            for j in range(-1,2,1):
+              if (j + loc[1]) < 0: continue
+              if(j + loc[1]) > 13: continue
+              visible[(i+1),(j+1)] = old_state[i + loc[0], j+loc[1]]
+        visible_flat = visible.flatten()
+        state_a = np.concatenate([visible_flat,n,l,r])
+        to_ret[idx,:] = state_a
+    return to_ret 
+
 def step_forward_worker(elem):
     idx, mb_actions, mb_agents, old_state = elem
     colls = np.zeros((14,14))
@@ -64,7 +88,8 @@ def step_forward_worker(elem):
         for j in range(14):
             if colls[i,j] > 1: C_t += 1
     reward += (-10.0)*C_t
-    return idx, reward, new_agents, old_state
+    return idx, reward, new_agents, old_state, format_states((10, mb_agents, old_state))
+
 class Traffic:
     def __init__(self, max_agents=10, p_next=0.05, minibatch_size=2):
         self.Nmax = max_agents
@@ -73,7 +98,7 @@ class Traffic:
         self.entries = [(13,7), (0,6), (7,0), (6,13)]
         self.generate_cache()
         self.reset()
-        self.pool = Pool(8)
+        self.pool = Pool(3)
 
     def reset(self):
         self.state = np.zeros((self.minibatch_size, 14,14))
@@ -169,7 +194,17 @@ class Traffic:
         old_states = [self.state[mb,:,:] for mb in idx]
         vals = []
         for mb in idx: vals.append((mb, mb_actions[mb], mb_agents[mb], old_states[mb]))
-        self.pool.map(step_forward_worker, vals)
+        res = self.pool.map(step_forward_worker, vals)
+        rewards = np.zeros((self.minibatch_size))
+        for elem in res:
+            idx, reward, new_agent, new_state, vis_states = elem
+            self.state[idx,:,:] = new_state
+            self.agents[idx] = new_agent
+            rewards[mb] = reward
+            new_states[idx,:] = vis_states
+        return rewards, new_states
+
+
 
     def step_forward(self, actions):
         return self.step_forward_multiprocess(actions)
