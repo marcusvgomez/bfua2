@@ -37,7 +37,7 @@ class agent(nn.Module):
                 self.num_states = num_states
                 self.num_agents = num_agents
                 self.num_actions = num_actions
-                self.K = K
+                self.K = K 
                 self.minibatch_size = minibatch_size
                 self.hidden_size = hidden_size
                 self.activation_fn = activation_fn()
@@ -58,7 +58,7 @@ class agent(nn.Module):
                 self.hidden_cells = []
                 self.skip_matrices = []
                 
-                for i in range(K+1):
+                for i in range(self.K+1):
                     if i == 0:
                         if not is_traffic:
                             self.communication_cells.append(nn.Linear(num_agents, hidden_size))
