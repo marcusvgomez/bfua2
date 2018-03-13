@@ -143,15 +143,15 @@ class Controller():
     def update_prediction_loss(self, predictions):
         goals = self.G ## goal x N
         ret = 0.0
-        ret_list = torch.cat([torch.norm(predictions[k,i,:,j] - goals[k,:,j]) for k in range(self.minibatch_size) for i in range(self.N) for j in range(self.N) if i != j ])
-        ret = ret_list.sum()
-        # for k in range(self.minibatch_size):
-            # for i in range(self.N):
-                # for j in range(self.N):
-                    # if i == j: continue
-                    # i_prediction_j = predictions[k,i,:,j]
-                    # j_true = goals[k,:,j]
-                    # ret += torch.norm(i_prediction_j - j_true)
+        # ret_list = torch.cat([torch.norm(predictions[k,i,:,j] - goals[k,:,j]) for k in range(self.minibatch_size) for i in range(self.N) for j in range(self.N) if i != j ])
+        # ret = ret_list.sum()
+        for k in range(self.minibatch_size):
+            for i in range(self.N):
+                for j in range(self.N):
+                    if i == j: continue
+                    i_prediction_j = predictions[k,i,:,j]
+                    j_true = goals[k,:,j]
+                    ret += torch.norm(i_prediction_j - j_true)
         self.G_loss =  -1.0 * ret
     
     def compute_prediction_loss(self): return self.G_loss
@@ -187,11 +187,11 @@ class Controller():
         goals = torch.FloatTensor(self.minibatch_size,GOAL_DIM, self.N).zero_()
         if self.deterministic_goals:
             #agent 0's goal is to get agent 1 to go to (5,5)
-            goals[:,:, 0] = torch.FloatTensor([0, 0, 1, 5, 5, 0]).repeat(self.minibatch_size, 1)
+            goals[:,:, 0] = torch.FloatTensor([0, 0, 1, 0, 0, 0]).repeat(self.minibatch_size, 1)
             #agent 1's goal is to get agent 0 to look UP at (0,1)
-            goals[:,:, 1] = torch.FloatTensor([0, 1, 0, 5, -5, 0]).repeat(self.minibatch_size, 1)
+            goals[:,:, 1] = torch.FloatTensor([0, 1, 0, -5, -5, 0]).repeat(self.minibatch_size, 1)
             # agent 2's goal is to send itself to (-5, -5)
-            goals[:,:, 2] = torch.FloatTensor([1, 0, 0, -5, -5, 1]).repeat(self.minibatch_size, 1)
+            goals[:,:, 2] = torch.FloatTensor([1, 0, 0, 5, 5, 1]).repeat(self.minibatch_size, 1)
             # the rest just do nothing
             for i in range(3, self.N):
                 goals[:,2, i] = 1
@@ -201,7 +201,7 @@ class Controller():
                 for i in range(self.N):
                     action_type = np.random.randint(0, 3) # either go-to, look-at, or do-nothing
                     x, y = np.random.uniform(-20.0, 20.0, size=(2,)) # TODO: have clearer bounds in env so these coordinates mean something
-                    target_agent = random.sample(agents_unused,1)
+                    target_agent = random.sample(agents_unused,1)[0]
                     agents_unused.remove(target_agent)
             
                     goals[j,action_type,i] = 1
@@ -309,10 +309,12 @@ class Controller():
             # print self.env.expose_world_state()[0]
             if iter_ == t - 1: 
                 # if self.GLOBAL_ITER % 100 == 99:
-                # print self.env.expose_world_state()[0]
+                #print self.env.expose_world_state()[0]
                 self.step(debug=True, is_training = is_training)
             else:
                 self.step(is_training = is_training)
+            print self.env.expose_world_state()[0]
+            # if iter_ == 2: assert False
 
             
             # visualize every 10 time steps

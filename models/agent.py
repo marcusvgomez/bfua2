@@ -63,7 +63,7 @@ class agent(nn.Module):
         else:
           self.goal_dim = 0
 
-        # dropout_prob = 0.0
+        dropout_prob = 0.0
 
         # print ("vocab size is: ", self.vocab_size + input_size)
 
@@ -93,6 +93,7 @@ class agent(nn.Module):
         #activation functions and dropout
         self.dropout = nn.Dropout(dropout_prob)
         self.softmax = nn.Softmax()
+        self.dev_softmax = nn.Softmax(dim = 2)
         self.log_softmax = nn.LogSoftmax()
         self.tanh = nn.Tanh()
         self.gumbel_softmax = GumbelSoftmax(tau=1.0,use_cuda = is_cuda)
@@ -179,6 +180,7 @@ class agent(nn.Module):
             action_output = psi_u + epsilon_noise
         else:
             action_output = psi_u
+
         # print action_output.min(), action_output.max()
 
 #        mem_mm_delta = mem_mm_delta.view(self.num_agents, self.memory_size, -1)#self.num_agents)
@@ -196,16 +198,18 @@ class agent(nn.Module):
         # mem_mm_delta = mem_mm_delta.transpose(2,3)
 
 
-        temp_comm_output = self.gumbel_softmax(psi_c)
         if is_training:
             communication_output = self.gumbel_softmax(psi_c)
         else:
-            psi_c_log = self.softmax(psi_c)
-            cat = Categorical(probs=psi_c_log)
-            comm_one_hot = cat.sample()
-            communication_output = torch.zeros(self.num_agents, self.vocab_size)
-            for i, val in enumerate(comm_one_hot.data):
-                communication_output[i][val] = 1.
+            psi_c_log = self.dev_softmax(psi_c)
+            
+            communication_output = torch.zeros(self.minibatch_size, self.num_agents, self.vocab_size)
+            for i in range(self.minibatch_size):
+                cat = Categorical(probs=psi_c_log[i])
+                comm_one_hot = cat.sample()
+                for j in range(self.num_agents):
+                    one_hot_index = comm_one_hot.data[j]
+                    communication_output[i,j,one_hot_index] =1
             communication_output = Variable(communication_output).cuda()
 
 
@@ -222,8 +226,10 @@ class agent(nn.Module):
             m = self.tanh(m + mem_delta + M_eps).transpose(1, 2)
         
         else:
-            M = self.tanh(M.transpose(2,3) + mem_mm_delta)
+            M = self.tanh(M + mem_mm_delta).transpose(2,3)
             m = self.tanh(m + mem_delta).transpose(1,2)
+
+        # print M, m
 
         # M = self.tanh(M.transpose(1,2) + mem_mm_delta)
         # m = self.tanh(m + mem_delta).transpose(0,1)
