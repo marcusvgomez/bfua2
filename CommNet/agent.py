@@ -28,9 +28,9 @@ minibatch_size: number of minibatches we're running simultaneously
 skip_connection: uses skip connections
 '''
 class agent(nn.Module):
-	def __init__(self, num_agents, num_actions, hidden_size = 128,
-				 activation_fn = nn.ReLU, K = 2, num_states = 5,
-				 minibatch_size = 2, skip_connection = True, use_cuda = True, is_traffic=False):
+    def __init__(self, num_agents, num_actions, hidden_size = 128,
+                 activation_fn = nn.ReLU, K = 2, num_states = 5,
+                 minibatch_size = 2, skip_connection = True, use_cuda = True, is_traffic=False):
                 super(agent, self).__init__()
                 assert activation_fn is not None
                 self.num_states = num_states
@@ -83,82 +83,81 @@ class agent(nn.Module):
 
 
 
-	'''
-	returns a list of actions which is of length minibatch_size
-	in every entry in the list it has:
-	a list of actions for every agent, the log_prob of taking the action
-	and
+    '''
+    returns a list of actions which is of length minibatch_size
+    in every entry in the list it has:
+    a list of actions for every agent, the log_prob of taking the action
+    and
 
-	'''
-	def forward(self, inputs):
-		state = inputs
-                init_hidden = self.stateEncoder(state)
-                init_hidden = self.hidden_cells[0](init_hidden)
-                temp_comm = init_hidden.sum(dim = 1)
+    '''
+    def forward(self, inputs):
+        state = inputs
+        init_hidden = self.stateEncoder(state)
+        init_hidden = self.hidden_cells[0](init_hidden)
+        temp_comm = init_hidden.sum(dim = 1)
 #                curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_actions, 1)
 #                curr_comm -= init_hidden
 #                curr_comm /= (self.num_actions-1)
-                if self.is_traffic:
-                    curr_comm = Variable(torch.zeros(self.minibatch_size, self.num_agents, self.hidden_size))
-                    if self.use_cuda: curr_comm = curr_comm.cuda()
-                else:
-                    curr_comm = Variable(torch.zeros(self.minibatch_size, self.num_actions, self.hidden_size))#.cuda()
-                    if self.use_cuda: curr_comm = curr_comm.cuda()
+        if self.is_traffic:
+            curr_comm = Variable(torch.zeros(self.minibatch_size, self.num_agents, self.hidden_size))
+            if self.use_cuda: curr_comm = curr_comm.cuda()
+        else:
+            curr_comm = Variable(torch.zeros(self.minibatch_size, self.num_actions, self.hidden_size))#.cuda()
+            if self.use_cuda: curr_comm = curr_comm.cuda()
 
 
-                curr_hidden = init_hidden
+        curr_hidden = init_hidden
 
 
-		for i in range(1, self.K+1):
-			curr_comm = self.communication_cells[i](curr_comm)
-			curr_hidden = self.hidden_cells[i](curr_hidden)
+        for i in range(1, self.K+1):
+            curr_comm = self.communication_cells[i](curr_comm)
+            curr_hidden = self.hidden_cells[i](curr_hidden)
 
-			if self.skip_connection:
-                            #curr_hidden = self.activation_fn(self.skip_matrices[i-1](self.activation_fn(curr_hidden + curr_comm + init_hidden)))
+            if self.skip_connection:
+                #curr_hidden = self.activation_fn(self.skip_matrices[i-1](self.activation_fn(curr_hidden + curr_comm + init_hidden)))
+                curr_hidden = self.activation_fn(self.skip_matrices[i-1](torch.cat([curr_hidden, curr_comm, init_hidden], dim = 2)))
 
-                            curr_hidden = self.activation_fn(self.skip_matrices[i-1](torch.cat([curr_hidden, curr_comm, init_hidden], dim = 2)))
-
-			else:
-                            pass
+            else:
+                pass
                             #curr_hidden = self.activation_fn(torch.
-				#curr_hidden = self.activation_fn(curr_hidden + curr_comm)
+                #curr_hidden = self.activation_fn(curr_hidden + curr_comm)
 
-			temp_comm = curr_hidden.sum(dim = 1)
-			if self.is_traffic:
-                            curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_agents, 1)
-                        else:
-                            curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_actions, 1)
-                        curr_comm -= curr_hidden
-                        curr_comm /= (self.num_actions-1)
-                        # for levers game
-                        #if not self.is_traffic:
-                        #    curr_comm = Variable(torch.zeros(self.minibatch_size, self.num_actions, self.hidden_size))#.cuda()
-                        #    if self.use_cuda: curr_comm = curr_comm.cuda()
+            temp_comm = curr_hidden.sum(dim = 1)
+            if self.is_traffic:
+                curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_agents, 1)
+            else:
+                curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_actions, 1)
+                curr_comm -= curr_hidden
+                curr_comm /= (self.num_actions-1)
+                # for levers game
+                #if not self.is_traffic:
+                #    curr_comm = Variable(torch.zeros(self.minibatch_size, self.num_actions, self.hidden_size))#.cuda()
+                #    if self.use_cuda: curr_comm = curr_comm.cuda()
 
-		actions = self.hidden_to_actions(curr_hidden)
-		advantage = self.hidden_to_advantage(curr_hidden)
-                advantage = advantage.mean(dim = 1)
+        actions = self.hidden_to_actions(curr_hidden)
+        advantage = self.hidden_to_advantage(curr_hidden)
+        advantage = advantage.mean(dim = 1)
 
-		actions_softmax = self.softmax(actions) #probability of action for every agent
+        actions_softmax = self.softmax(actions) #probability of action for every agent
 
-		actions_list = []
-		for i in range(self.minibatch_size):
-			m = Categorical(probs = actions_softmax[i])
-			action = m.sample()
-			log_prob = m.log_prob(action)
-			actions_list.append((action.data.cpu().numpy(), log_prob, actions_softmax[i]))
+        actions_list = []
+        for i in range(self.minibatch_size):
+            m = Categorical(probs = actions_softmax[i])
+            action = m.sample()
+            log_prob = m.log_prob(action)
+            actions_list.append((action.data.cpu().numpy(), log_prob, actions_softmax[i]))
                         #print action.data.cpu().numpy()
 
 
-		return actions_list, advantage
+        return actions_list, advantage
 
 
 
 
 def main():
-	test = Variable(torch.Tensor([[1,2,3],[3,4,4]]))
-	agent_trainable = agent(num_agents = num_agents, num_actions = num_actions)
-	agent_trainable(test.long())
+    test = Variable(torch.Tensor([[1,2,3],[3,4,4]]))
+    agent_trainable = agent(num_agents = num_agents, num_actions = num_actions)
+    agent_trainable(test.long())
 
 if __name__ == "__main__":
-	main()
+    main()
