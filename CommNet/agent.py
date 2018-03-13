@@ -174,7 +174,7 @@ class agent(nn.Module):
                     print "currmapping is: ", curr_mapping
                     print "agent index is: ", agent_index
                     assert False
-        temp_comm = torch.bmm(update_comm, curr_hidden)
+        temp_comm = torch.bmm(update_comm, curr_hidden)/idx
 
 
         return temp_comm

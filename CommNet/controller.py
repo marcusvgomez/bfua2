@@ -21,7 +21,7 @@ class Controller:
         self.use_cuda = True
         self.is_supervised = False
         self.sparse_communication = True
-        self.num_comm_channels = 1
+        self.num_comm_channels = 4
 
         self.agent_trainable = self.agent(num_agents = self.M, num_actions = self.A, 
                                           minibatch_size = self.minibatch_size, use_cuda=self.use_cuda, 
@@ -90,6 +90,7 @@ class Controller:
             for j in range(agent_space):
                 state_val = curr_state[j]
                 curr_state_set.remove(state_val)
+                # print "length of set is: ", curr_state_set, num_channels, curr_state
                 curr_pairing[state_val] = np.random.choice(list(curr_state_set), size = num_channels, replace = False)
                 curr_state_set.add(state_val)
             agent_pairing.append(curr_pairing)

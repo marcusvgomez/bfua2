@@ -22,7 +22,7 @@ class Levers:
     def get_initial_state(self):
         state = np.zeros((self.minibatch_size, self.m))
         for i in range(self.minibatch_size): 
-            state[i,:] = np.random.choice(self.N, self.m)
+            state[i,:] = np.random.choice(self.N, self.m, replace = False)
         state = torch.Tensor(state)
         return state
 

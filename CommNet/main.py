@@ -32,7 +32,7 @@ def getTime():
 #save_path = '/cvgl2/u/bcui/cs234/results/'
 save_path = "./results/"
 # model_name = 'communication_vision_non_adversarial'
-model_name = 'levers_communication_sparse'
+model_name = 'levers_communication_sparse_sanity'
 loss_name = save_path + model_name + "loss.npy"
 reward_name = save_path + model_name + "accuracy.npy"
 
