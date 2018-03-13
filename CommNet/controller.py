@@ -20,16 +20,21 @@ class Controller:
         self.agent = agent
         self.use_cuda = True
         self.is_supervised = False
-        self.sparse_communication = True
-        self.num_comm_channels = 4
+        self.sparse_communication = False
+        self.deterministic_sparse_communication = True
+        self.num_comm_channels = 3
 
         self.agent_trainable = self.agent(num_agents = self.M, num_actions = self.A, 
                                           minibatch_size = self.minibatch_size, use_cuda=self.use_cuda, 
-                                          sparse_communication = self.sparse_communication)
+                                          sparse_communication = self.sparse_communication,
+                                          sparse_deterministic_communication = self.deterministic_sparse_communication)
         self.agent_trainable#.cuda()
         if self.use_cuda: self.agent_trainable.cuda()
 
         self.initializeParameters()
+
+        if self.deterministic_sparse_communication:
+            self.comm_matrix = self.make_sparse_matrix()
 
         if runtime_config.env == "traffic":
             self.env = Traffic()
@@ -66,18 +71,40 @@ class Controller:
             states = make_supervised(states)
         if self.sparse_communication:
             active_comm_channels = self.make_sparse_pairing(states, num_channels = self.num_comm_channels)
+        if self.deterministic_sparse_communication:
+            active_comm_channels = self.comm_matrix
 
         states = Variable(states)
 
         if self.use_cuda: states = states.cuda()
             
-        if self.sparse_communication:
+        if self.sparse_communication or self.deterministic_sparse_communication:
             action_list, advantage = self.agent_trainable((states.long(), active_comm_channels))
         else:
             action_list, advantage = self.agent_trainable(states.long())
         reward = self.env.get_reward(action_list)
         
         return self.compute_loss(reward, action_list, advantage), reward.mean()
+
+    #makese the sparse matrix that i 
+    def make_sparse_matrix(self):
+        #this code is really ratchet, but it has to do
+        self.sparse_map = self.make_sparse_pairing(torch.Tensor([[i for i in range(self.A)] for _ in range(self.minibatch_size)]),
+                                                   self.num_comm_channels)
+
+        update_comm = Variable(torch.zeros((self.minibatch_size, self.A, self.A)), requires_grad = True)
+        if self.use_cuda: 
+            update_comm = update_comm.cuda()
+
+        for i in range(self.minibatch_size):
+            curr_mapping = self.sparse_map[i]
+            minibatch_agent_lever = curr_mapping.keys()
+            for idx, agent_index in enumerate(curr_mapping):
+                for num_channels, channel_index in enumerate(curr_mapping[agent_index]):
+                    channel_index = int(channel_index)
+                    channel_index = minibatch_agent_lever.index(channel_index)
+                    update_comm[i, idx, channel_index] = 1./self.num_comm_channels 
+        return update_comm
 
     def make_sparse_pairing(self, states, num_channels):
         assert (num_channels < self.A)
@@ -93,7 +120,11 @@ class Controller:
                 # print "length of set is: ", curr_state_set, num_channels, curr_state
                 curr_pairing[state_val] = np.random.choice(list(curr_state_set), size = num_channels, replace = False)
                 curr_state_set.add(state_val)
-            agent_pairing.append(curr_pairing)
+            if self.deterministic_sparse_communication:
+                agent_pairing = [curr_pairing for i in range(self.minibatch_size)]
+                return agent_pairing
+            else:
+                agent_pairing.append(curr_pairing)
         return agent_pairing
 
 
@@ -162,9 +193,10 @@ class TrafficController:
         rewards = []
         actions = []
         advantages = []
+        log_prob_list = []
         for iter_ in range(self.game_length):
             #print "ITERATION: ", iter_
-            action_list, advantage = self.agent_trainable(state.float())
+            action_list, advantage, log_probs = self.agent_trainable(state.float())
             actions_only_l = [elem[0] for elem in action_list]
             actions_np = np.zeros((self.minibatch_size, self.maxN))
             for i in range(len(actions_only_l)):
@@ -174,38 +206,23 @@ class TrafficController:
             rewards.append(reward)
             actions.append(action_list)
             advantages.append(advantage)
+            log_prob_list.append(log_probs)
             
-        return self.compute_loss(rewards, actions, advantages)
-    def run_thread_minibatches(self): 
-        state = Variable(torch.Tensor(self.env.step_init()))
-        if self.use_cuda: state = state.cuda()
-        rewards = []
-        actions = []
-        advantages = []
-        for iter_ in range(self.game_length):
-            #print "ITERATION: ", iter_
-            action_list, advantage = self.agent_trainable(state.float())
-            actions_only_l = [elem[0] for elem in action_list]
-            actions_np = np.zeros((self.minibatch_size, self.maxN))
-            for i in range(len(actions_only_l)):
-                for j in range(len(actions_only_l[i])):
-                    actions_np[i,j] = actions_only_l[i][j]
-            reward, next_state = self.env.step_forward(actions_np)
-            rewards.append(reward)
-            actions.append(action_list)
-            advantages.append(advantage)
-            
-        return self.compute_loss(rewards, actions, advantages)
+        return self.compute_loss(rewards, actions, advantages, log_probs)
 
-
-
-    def compute_loss(self, rewards, actions, advantages):
+    def compute_loss(self, rewards, actions, advantages, log_probs):
         b = 0.0
         for iter_ in range(self.game_length):
-            b += self.compute_loss_at_t(rewards[iter_], actions[iter_], advantages[iter_])
+            # b += self.compute_loss_at_t(rewards[iter_], actions[iter_], advantages[iter_])
+            b += self.compute_loss_at_t_vectorized(rewards[iter_], log_probs[iter_], advantages[iter_])
         return b
     def update_at_epoch(self, epoch):
         self.env.update_p_next(epoch)
+
+    def compute_loss_at_t_vectorized(self, reward, log_prob_list, advantage, alpha = 0.03):
+        loss = 0.
+        print log_prob_list
+        assert False
 
     def compute_loss_at_t(self, reward, action_list, advantage, alpha = 0.03):
         loss = 0.
@@ -227,6 +244,28 @@ class TrafficController:
             
             loss += (prob_loss - reward_loss)
         return -loss/self.minibatch_size
+
+
+    def run_thread_minibatches(self): 
+        state = Variable(torch.Tensor(self.env.step_init()))
+        if self.use_cuda: state = state.cuda()
+        rewards = []
+        actions = []
+        advantages = []
+        for iter_ in range(self.game_length):
+            #print "ITERATION: ", iter_
+            action_list, advantage = self.agent_trainable(state.float())
+            actions_only_l = [elem[0] for elem in action_list]
+            actions_np = np.zeros((self.minibatch_size, self.maxN))
+            for i in range(len(actions_only_l)):
+                for j in range(len(actions_only_l[i])):
+                    actions_np[i,j] = actions_only_l[i][j]
+            reward, next_state = self.env.step_forward(actions_np)
+            rewards.append(reward)
+            actions.append(action_list)
+            advantages.append(advantage)
+            
+        return self.compute_loss(rewards, actions, advantages)
 def main():
     runtime_config = None
     curr_controller = Controller(runtime_config)

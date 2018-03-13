@@ -28,10 +28,10 @@ minibatch_size: number of minibatches we're running simultaneously
 skip_connection: uses skip connections
 '''
 class agent(nn.Module):
-    def __init__(self, num_agents, num_actions, hidden_size = 9,
+    def __init__(self, num_agents, num_actions, hidden_size = 128,
                  activation_fn = nn.ReLU, K = 2, num_states = 5,
                  minibatch_size = 2, skip_connection = True, use_cuda = True, is_traffic=False,
-                 is_supervised = True, sparse_communication = True):
+                 is_supervised = True, sparse_communication = False, sparse_deterministic_communication = False):
                 super(agent, self).__init__()
                 assert activation_fn is not None
                 self.num_states = num_states
@@ -46,6 +46,7 @@ class agent(nn.Module):
                 self.is_traffic = is_traffic
                 self.is_supervised = is_supervised
                 self.sparse_communication = sparse_communication
+                self.sparse_deterministic_communication = sparse_deterministic_communication
 
 
                 self.stateEncoder = nn.Embedding(num_agents, num_agents)
@@ -96,6 +97,9 @@ class agent(nn.Module):
     def forward(self, inputs):
         if self.sparse_communication:
             state, self.sparse_map = inputs
+        elif self.sparse_deterministic_communication:
+            state, self.comm_update_matrix = inputs
+            print self.comm_update_matrix
         else:
             state = inputs
         init_hidden = self.stateEncoder(state)
@@ -126,7 +130,10 @@ class agent(nn.Module):
             else: pass
 
             if self.sparse_communication:
-                self.update_sparse_communication(curr_hidden)
+                curr_comm = self.update_sparse_communication(curr_hidden)
+            elif self.sparse_deterministic_communication:
+                curr_comm = self.update_deterministic_communication(curr_hidden, )
+
             else:
                 temp_comm = curr_hidden.sum(dim = 1)
                 if self.is_traffic:
@@ -147,15 +154,22 @@ class agent(nn.Module):
         actions_softmax = self.softmax(actions) #probability of action for every agent
 
         actions_list = []
+        if self.is_traffic:
+            log_prob_list = []
         for i in range(self.minibatch_size):
             m = Categorical(probs = actions_softmax[i])
             action = m.sample()
             log_prob = m.log_prob(action)
             actions_list.append((action.data.cpu().numpy(), log_prob, actions_softmax[i]))
-                        #print action.data.cpu().numpy()
+            if self.is_traffic:
+                log_prob_list.append(log_prob)
 
-
-        return actions_list, advantage
+        if self.is_traffic:
+            print log_prob_list, torch.cat(log_prob_list)
+            assert False
+            return actions_list, advantage, torch.cat(log_prob_list)
+        else:
+            return actions_list, advantage
 
     def update_sparse_communication(self, curr_hidden):
         update_comm = Variable(torch.zeros((self.minibatch_size, self.num_actions, self.num_actions)), requires_grad = True)
@@ -166,18 +180,25 @@ class agent(nn.Module):
             minibatch_agent_lever = curr_mapping.keys()
             for idx, agent_index in enumerate(curr_mapping):
                 try:
-                    for channel_index in curr_mapping[agent_index]:
+                    for num_channels, channel_index in enumerate(curr_mapping[agent_index]):
                         channel_index = int(channel_index)
                         channel_index = minibatch_agent_lever.index(channel_index)
                         update_comm[i, idx, channel_index] = 1 
+
                 except KeyError:
                     print "currmapping is: ", curr_mapping
                     print "agent index is: ", agent_index
                     assert False
-        temp_comm = torch.bmm(update_comm, curr_hidden)/idx
-
-
+            print minibatch_agent_lever
+            print curr_mapping
+            print update_comm[i]
+            assert False
+        temp_comm = torch.bmm(update_comm, curr_hidden)/(num_channels+1)
         return temp_comm
+
+
+    def update_deterministic_communication(self, curr_hidden):
+        return torch.bmm(self.comm_update_matrix, curr_hidden)
 
 
 def main():
