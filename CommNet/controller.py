@@ -18,9 +18,14 @@ class Controller:
         self.A = 5
         self.minibatch_size = 64
         self.agent = agent
-        self.use_cuda = False
+        self.use_cuda = True
+        self.is_supervised = False
+        self.sparse_communication = True
+        self.num_comm_channels = 1
 
-        self.agent_trainable = self.agent(num_agents = self.M, num_actions = self.A, minibatch_size = self.minibatch_size, use_cuda=self.use_cuda)
+        self.agent_trainable = self.agent(num_agents = self.M, num_actions = self.A, 
+                                          minibatch_size = self.minibatch_size, use_cuda=self.use_cuda, 
+                                          sparse_communication = self.sparse_communication)
         self.agent_trainable#.cuda()
         if self.use_cuda: self.agent_trainable.cuda()
 
@@ -42,19 +47,58 @@ class Controller:
     #the states should be of shape (minibatch_size, num_agents)
     #MAKE SURE THE SHAPING IS RIGHT 
     def run(self):
-        states = Variable(self.env.get_initial_state())#.cuda()
+        def make_supervised(states):
+            new_states = []
+            for i in range(self.minibatch_size):
+                curr_states = states[i].numpy()
+                sorted_states = curr_states.copy()
+                sorted_states.sort()
+                curr_new_states = []
+                for state in curr_states:
+                    idx = np.where(sorted_states==state)
+                    curr_new_states.append(idx[0][0])
+
+                new_states.append(curr_new_states)
+            return torch.Tensor(new_states)
+
+        states = self.env.get_initial_state()
+        if self.is_supervised:
+            states = make_supervised(states)
+        if self.sparse_communication:
+            active_comm_channels = self.make_sparse_pairing(states, num_channels = self.num_comm_channels)
+
+        states = Variable(states)
+
         if self.use_cuda: states = states.cuda()
-        action_list, advantage = self.agent_trainable(states.long())
+            
+        if self.sparse_communication:
+            action_list, advantage = self.agent_trainable((states.long(), active_comm_channels))
+        else:
+            action_list, advantage = self.agent_trainable(states.long())
         reward = self.env.get_reward(action_list)
         
         return self.compute_loss(reward, action_list, advantage), reward.mean()
 
+    def make_sparse_pairing(self, states, num_channels):
+        assert (num_channels < self.A)
+        agent_pairing = []
+        _ , agent_space = states.shape
+        for i in range(self.minibatch_size):
+            curr_pairing = {}
+            curr_state = states.numpy()[i].tolist()
+            curr_state_set = set(curr_state)
+            for j in range(agent_space):
+                state_val = curr_state[j]
+                curr_state_set.remove(state_val)
+                curr_pairing[state_val] = np.random.choice(list(curr_state_set), size = num_channels, replace = False)
+                curr_state_set.add(state_val)
+            agent_pairing.append(curr_pairing)
+        return agent_pairing
+
+
     def compute_loss(self, reward, action_list, advantage, alpha = 0.03):
         loss = 0.
         print (reward.mean())
-#            for i in range(self.minibatch_size):
-#                currReward = Variable(torch.Tensor([reward[i]]), requires_grad = False)
-#                loss += (-action_list[i][1] * currReward).sum()
         for i in range(self.minibatch_size):
             currReward = torch.Tensor([reward[i]])
             currAdvantage = advantage[i]

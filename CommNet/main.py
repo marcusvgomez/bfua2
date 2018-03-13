@@ -1,4 +1,7 @@
 # from utils.utils import *
+import matplotlib
+matplotlib.use('Agg')
+
 from agent import * 
 from controller import *
 from env import *
@@ -29,7 +32,7 @@ def getTime():
 #save_path = '/cvgl2/u/bcui/cs234/results/'
 save_path = "./results/"
 # model_name = 'communication_vision_non_adversarial'
-model_name = 'levers_communication'
+model_name = 'levers_communication_sparse'
 loss_name = save_path + model_name + "loss.npy"
 reward_name = save_path + model_name + "accuracy.npy"
 
@@ -110,12 +113,11 @@ def main():
 #    assert False
     loss_list = []
     reward_list = []
-    for i in range(58):
+    for i in range(50008):
 
         loss, reward = controller.run()
-        print loss
         loss_list.append(loss.data[0])
-        reward_list.append(reward.data[0])
+        reward_list.append(reward)
 
         if i % 100 == 0:
             print "EPOCH IS: ", i, " and loss is: ", loss.data[0], "reward is: ", reward
@@ -124,12 +126,11 @@ def main():
         loss.backward()
         optimizer.step()
 
-    print reward_list
-    print loss_list
 
     np.save(loss_name, np.array(loss_list))
     np.save(reward_name, np.array(reward_list))
     plot_loss(loss_list)
+    plt.clf()
     plot_loss(reward_list, ylabel = 'reward', typing = 'Reward_')
     
 

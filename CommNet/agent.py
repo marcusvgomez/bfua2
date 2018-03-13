@@ -28,9 +28,10 @@ minibatch_size: number of minibatches we're running simultaneously
 skip_connection: uses skip connections
 '''
 class agent(nn.Module):
-    def __init__(self, num_agents, num_actions, hidden_size = 128,
+    def __init__(self, num_agents, num_actions, hidden_size = 9,
                  activation_fn = nn.ReLU, K = 2, num_states = 5,
-                 minibatch_size = 2, skip_connection = True, use_cuda = True, is_traffic=False):
+                 minibatch_size = 2, skip_connection = True, use_cuda = True, is_traffic=False,
+                 is_supervised = True, sparse_communication = True):
                 super(agent, self).__init__()
                 assert activation_fn is not None
                 self.num_states = num_states
@@ -43,6 +44,8 @@ class agent(nn.Module):
                 self.skip_connection = True
                 self.use_cuda = use_cuda
                 self.is_traffic = is_traffic
+                self.is_supervised = is_supervised
+                self.sparse_communication = sparse_communication
 
 
                 self.stateEncoder = nn.Embedding(num_agents, num_agents)
@@ -91,7 +94,10 @@ class agent(nn.Module):
 
     '''
     def forward(self, inputs):
-        state = inputs
+        if self.sparse_communication:
+            state, self.sparse_map = inputs
+        else:
+            state = inputs
         init_hidden = self.stateEncoder(state)
         init_hidden = self.hidden_cells[0](init_hidden)
         temp_comm = init_hidden.sum(dim = 1)
@@ -117,22 +123,22 @@ class agent(nn.Module):
                 #curr_hidden = self.activation_fn(self.skip_matrices[i-1](self.activation_fn(curr_hidden + curr_comm + init_hidden)))
                 curr_hidden = self.activation_fn(self.skip_matrices[i-1](torch.cat([curr_hidden, curr_comm, init_hidden], dim = 2)))
 
-            else:
-                pass
-                            #curr_hidden = self.activation_fn(torch.
-                #curr_hidden = self.activation_fn(curr_hidden + curr_comm)
+            else: pass
 
-            temp_comm = curr_hidden.sum(dim = 1)
-            if self.is_traffic:
-                curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_agents, 1)
+            if self.sparse_communication:
+                self.update_sparse_communication(curr_hidden)
             else:
-                curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_actions, 1)
-                curr_comm -= curr_hidden
-                curr_comm /= (self.num_actions-1)
-                # for levers game
-                #if not self.is_traffic:
-                #    curr_comm = Variable(torch.zeros(self.minibatch_size, self.num_actions, self.hidden_size))#.cuda()
-                #    if self.use_cuda: curr_comm = curr_comm.cuda()
+                temp_comm = curr_hidden.sum(dim = 1)
+                if self.is_traffic:
+                    curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_agents, 1)
+                else:
+                    curr_comm = temp_comm.view(self.minibatch_size, 1, self.hidden_size).repeat(1, self.num_actions, 1)
+                    curr_comm -= curr_hidden
+                    curr_comm /= (self.num_actions-1)
+                    # for levers game
+                    #if not self.is_traffic:
+                    #    curr_comm = Variable(torch.zeros(self.minibatch_size, self.num_actions, self.hidden_size))#.cuda()
+                    #    if self.use_cuda: curr_comm = curr_comm.cuda()
 
         actions = self.hidden_to_actions(curr_hidden)
         advantage = self.hidden_to_advantage(curr_hidden)
@@ -151,7 +157,27 @@ class agent(nn.Module):
 
         return actions_list, advantage
 
+    def update_sparse_communication(self, curr_hidden):
+        update_comm = Variable(torch.zeros((self.minibatch_size, self.num_actions, self.num_actions)), requires_grad = True)
+        if self.use_cuda: 
+            update_comm = update_comm.cuda()
+        for i in range(self.minibatch_size):
+            curr_mapping = self.sparse_map[i]
+            minibatch_agent_lever = curr_mapping.keys()
+            for idx, agent_index in enumerate(curr_mapping):
+                try:
+                    for channel_index in curr_mapping[agent_index]:
+                        channel_index = int(channel_index)
+                        channel_index = minibatch_agent_lever.index(channel_index)
+                        update_comm[i, idx, channel_index] = 1 
+                except KeyError:
+                    print "currmapping is: ", curr_mapping
+                    print "agent index is: ", agent_index
+                    assert False
+        temp_comm = torch.bmm(update_comm, curr_hidden)
 
+
+        return temp_comm
 
 
 def main():
