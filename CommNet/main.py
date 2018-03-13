@@ -29,12 +29,17 @@ def getTime():
 #save_path = '/cvgl2/u/bcui/cs234/results/'
 save_path = "./results/"
 # model_name = 'communication_vision_non_adversarial'
-model_name = 'full_experiment_minibatch'
+model_name = 'levers_communication'
+loss_name = save_path + model_name + "loss.npy"
+reward_name = save_path + model_name + "accuracy.npy"
+
 currTime = getTime()
 print (currTime)
 save_model_name = save_path + model_name + " date " + currTime + ".pt"
 best_name = save_path + "best/" + model_name + " date " + currTime + ".pt"
 loss_dir = save_path + "loss/" + model_name + " date " + currTime + ".pt"
+
+
 #model saving code
 def save_model(model, optimizer, epoch_num, best_dev_acc, modelName = save_model_name, bestModelName = best_name, is_best = False):
     state = {'epoch': epoch_num + 1,
@@ -46,6 +51,7 @@ def save_model(model, optimizer, epoch_num, best_dev_acc, modelName = save_model
     if is_best:
         shutil.copyfile(modelName, bestModelName)
 
+
 #updates the optimizer if we are going to do decay rates
 def updateOptimizer(optimizer, decay_rate = 5):
     print ("optimizing parameters")
@@ -55,13 +61,13 @@ def updateOptimizer(optimizer, decay_rate = 5):
     return optimizer
 
 #plotting loss
-def plot_loss(loss):
+def plot_loss(loss, ylabel = 'Loss', typing = 'Loss_'):
     x_axis = [i for i in range(len(loss))]
     y_axis = loss
     plt.plot(x_axis, y_axis, label = 'o')
     plt.xlabel('Epoch Number')
-    plt.ylabel('Loss')
-    plt.savefig('Loss_' + str(model_name) + '.png')
+    plt.ylabel(ylabel)
+    plt.savefig(typing + str(model_name) + '.png')
 
 def load_model(modelPath, controller, optimizer):
     print "Loading Checkpoint ... =>"
@@ -94,7 +100,7 @@ def main():
     #this needs to be fixed
     controller = Controller(runtime_config)
     parameters = ifilter(lambda p :p.requires_grad, controller.agent_trainable.parameters())
-    optimizer = optim.Adam(parameters, lr = 0.00025)
+    optimizer = optim.Adam(parameters, lr = 0.0005)
 #    optimizer = optim.Adam(controller.agent_trainable.parameters())
     
     ## TODO: write train code
@@ -102,25 +108,30 @@ def main():
 #    for j, param in enumerate(controller.agent_trainable.parameters()):
 #        print param, j
 #    assert False
+    loss_list = []
+    reward_list = []
+    for i in range(58):
 
-    for i in range(50008):
+        loss, reward = controller.run()
+        print loss
+        loss_list.append(loss.data[0])
+        reward_list.append(reward.data[0])
 
-        loss = controller.run()
-
-#        for j, param in enumerate(controller.agent_trainable.parameters()):
-#            print j
-#            print param
         if i % 100 == 0:
-            print "EPOCH IS: ", i, " and loss is: ", loss.data[0]
+            print "EPOCH IS: ", i, " and loss is: ", loss.data[0], "reward is: ", reward
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+    print reward_list
+    print loss_list
+
+    np.save(loss_name, np.array(loss_list))
+    np.save(reward_name, np.array(reward_list))
+    plot_loss(loss_list)
+    plot_loss(reward_list, ylabel = 'reward', typing = 'Reward_')
     
-#        for j, param in enumerate(controller.agent_trainable.parameters()):
-#            print j
-#            print param
-        #assert False
 
 if __name__ == "__main__":
     main()

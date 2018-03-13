@@ -23,7 +23,7 @@ import shutil
 from itertools import *
 import gc
 
-import multiprocessing
+import multiprocessing as mp
 
 def getTime():
     return datetime.datetime.now().strftime("%d-%H-%M-%s")
@@ -73,10 +73,9 @@ def load_model(modelPath, controller, optimizer):
     print ("best dev acc is: ", checkpoint['best_dev_acc'])
 
 
-def minibatch_worker(minibatch_num, return_dict, controller):
+def minibatch_worker(minibatch_num, q, controller):
     loss = controller.run()
-    return_dict[minibatch_num] = loss
-
+    q.put(loss)
 
 def main():
     parser = argparse.ArgumentParser(description="Train time babbbyyyyyyyy")
@@ -99,15 +98,15 @@ def main():
     runtime_config = RuntimeConfig(arg_dict)
     print (runtime_config.num_agents)
     num_threads = 8
+    runtime_config.is_threaded = False
     #this needs to be fixed
     controller = TrafficController(runtime_config)
-    parameters = ifilter(lambda p :p.requires_grad, controller.agent_trainable.parameters())
+    parameters = filter(lambda p :p.requires_grad, controller.agent_trainable.parameters())
     optimizer = optim.RMSprop(parameters, lr = 0.003)
     for epoch in range(300):
         controller.update_at_epoch(epoch)
         for update in range(100):
-            manager = multiprocessing.Manager()
-            return_dict = manager.dict()
+
 
             if not runtime_config.is_threaded:
                 loss = controller.run()
@@ -118,14 +117,17 @@ def main():
                 loss.backward()
                 optimizer.step()
             else:
-                jobs = []
+
+                ctx = mp.get_context("spawn")
+                q = ctx.Queue()
+
+
+                loss_list = []
                 for i in range(num_threads):
-                    p = multiprocessing.Process(target=minibatch_worker, args=(i,return_dict,controller))
-                    jobs.append(p)
-                    p.start()
-                for proc in jobs:
-                    proc.join()
-                print (return_dict.values())
+                    p = ctx.Process(target=minibatch_worker, args=(i,q,controller))
+                    loss_list.append(q.get())
+                    p.join()
+                print (loss_list.values())
                 assert False
                 
     

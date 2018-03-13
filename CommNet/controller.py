@@ -47,7 +47,7 @@ class Controller:
         action_list, advantage = self.agent_trainable(states.long())
         reward = self.env.get_reward(action_list)
         
-        return self.compute_loss(reward, action_list, advantage)
+        return self.compute_loss(reward, action_list, advantage), reward.mean()
 
     def compute_loss(self, reward, action_list, advantage, alpha = 0.03):
         loss = 0.
@@ -92,7 +92,7 @@ class TrafficController:
 
         if self.thread_minibatches:
             self.num_threads = 8
-            self.minibatch_size /= self.num_threads
+            self.minibatch_size //= self.num_threads
 
         self.agent_trainable = self.agent(num_agents = self.maxN, num_actions = self.A, minibatch_size = self.minibatch_size, is_traffic=True, use_cuda=self.use_cuda)
         if self.use_cuda: self.agent_trainable.cuda()
@@ -131,7 +131,6 @@ class TrafficController:
             advantages.append(advantage)
             
         return self.compute_loss(rewards, actions, advantages)
-
     def run_thread_minibatches(self): 
         state = Variable(torch.Tensor(self.env.step_init()))
         if self.use_cuda: state = state.cuda()

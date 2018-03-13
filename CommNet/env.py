@@ -11,6 +11,7 @@ from torch.nn.parameter import Parameter
 
 from torch.distributions import Categorical
 import numpy as np
+from multiprocessing import Pool
 class Levers:
     def __init__(self, num_agents=10, num_samples=3, minibatch_size=2):
         self.N = num_agents
@@ -34,6 +35,36 @@ class Levers:
             reward[i] = 1.*len(np.unique(actions[i][0])) / self.m
         return reward
 
+def step_forward_worker(elem):
+    idx, mb_actions, mb_agents, old_state = elem
+    colls = np.zeros((14,14))
+    reward = 0.0
+    new_agents = []
+    agents = mb_agents[:]
+    for agent in agents:
+        idx, loc, route, t, remaining_steps = agent
+        r_steps = remaining_steps[:]
+        t = t+1
+        action = mb_actions[idx]
+        new_loc = loc
+        if action == 1:
+            next_step = r_steps[0]
+            r_steps.pop(0)
+            new_loc = [None, None]
+            new_loc[0] = loc[0] + next_step[0]
+            new_loc[1] = loc[1] + next_step[1]
+            new_loc = tuple(new_loc)
+            colls[new_loc[0], new_loc[1]] += 1.0
+            old_state[loc[0], loc[1]] -= 1
+            old_state[new_loc[0], new_loc[1]] += 1
+        reward += (-0.01*t)
+        if len(r_steps) > 0: new_agents.append((idx, new_loc, route, t, r_steps))
+    C_t = 0
+    for i in range(14):
+        for j in range(14):
+            if colls[i,j] > 1: C_t += 1
+    reward += (-10.0)*C_t
+    return idx, reward, new_agents, old_state
 class Traffic:
     def __init__(self, max_agents=10, p_next=0.05, minibatch_size=2):
         self.Nmax = max_agents
@@ -42,13 +73,14 @@ class Traffic:
         self.entries = [(13,7), (0,6), (7,0), (6,13)]
         self.generate_cache()
         self.reset()
+        self.pool = Pool(8)
 
     def reset(self):
         self.state = np.zeros((self.minibatch_size, 14,14))
         self.N = [0]*self.minibatch_size
         self.agents = [[] for _ in range(self.minibatch_size)]
 #        self.unused_ids = [range(self.Nmax)]*self.minibatch_size
-        self.unused_ids = [range(self.Nmax) for _ in range(self.minibatch_size)]
+        self.unused_ids = [[i for i in range(self.Nmax)] for _ in range(self.minibatch_size)]
 
     def update_p_next(self, epoch_num):
         if epoch_num < 100: return
@@ -127,7 +159,21 @@ class Traffic:
 
     ##takes in actions, returns reward
     ##actions should be MB x max_agents
+
+    def step_forward_multiprocess(self, actions):
+        rewards = np.zeros((self.minibatch_size))
+        new_states = np.zeros((self.minibatch_size, self.Nmax, 218))
+        idx = xrange(self.minibatch_size)
+        mb_actions = [actions[mb,:] for mb in idx]
+        mb_agents = [self.agents[mb][:] for mb in idx]
+        old_states = [self.state[mb,:,:] for mb in idx]
+        vals = []
+        for mb in idx: vals.append((mb, mb_actions[mb], mb_agents[mb], old_states[mb]))
+        self.pool.map(step_forward_worker, vals)
+
     def step_forward(self, actions):
+        return self.step_forward_multiprocess(actions)
+        ### L O FUCKING L
         rewards = np.zeros((self.minibatch_size))
         new_states = np.zeros((self.minibatch_size, self.Nmax, 218))
         for mb in range(self.minibatch_size):
