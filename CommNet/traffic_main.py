@@ -23,6 +23,8 @@ import shutil
 from itertools import *
 import gc
 
+import multiprocessing
+
 def getTime():
     return datetime.datetime.now().strftime("%d-%H-%M-%s")
 
@@ -64,11 +66,17 @@ def plot_loss(loss):
     plt.savefig('Loss_' + str(model_name) + '.png')
 
 def load_model(modelPath, controller, optimizer):
-    print "Loading Checkpoint ... =>"
+    print ("Loading Checkpoint ... =>")
     checkpoint = torch.load(modelPath)
     controller.agent_trainable.load_state_dict(checkpoint['state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer'])
-    print "best dev acc is: ", checkpoint['best_dev_acc']
+    print ("best dev acc is: ", checkpoint['best_dev_acc'])
+
+
+def minibatch_worker(minibatch_num, return_dict, controller):
+    loss = controller.run()
+    return_dict[minibatch_num] = loss
+
 
 def main():
     parser = argparse.ArgumentParser(description="Train time babbbyyyyyyyy")
@@ -87,40 +95,40 @@ def main():
 
 
     arg_dict = vars(parser.parse_args())
-
+    
     runtime_config = RuntimeConfig(arg_dict)
-    print runtime_config.num_agents
-
+    print (runtime_config.num_agents)
+    num_threads = 8
     #this needs to be fixed
-    controller = Controller(runtime_config)
+    controller = TrafficController(runtime_config)
     parameters = ifilter(lambda p :p.requires_grad, controller.agent_trainable.parameters())
-    optimizer = optim.Adam(parameters, lr = 0.00025)
-#    optimizer = optim.Adam(controller.agent_trainable.parameters())
+    optimizer = optim.RMSprop(parameters, lr = 0.003)
+    for epoch in range(300):
+        controller.update_at_epoch(epoch)
+        for update in range(100):
+            manager = multiprocessing.Manager()
+            return_dict = manager.dict()
+
+            if not runtime_config.is_threaded:
+                loss = controller.run()
+
+                print ("EPOCH IS: ", epoch, "update is: ", update, " and loss is: ", loss.data[0])
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+            else:
+                jobs = []
+                for i in range(num_threads):
+                    p = multiprocessing.Process(target=minibatch_worker, args=(i,return_dict,controller))
+                    jobs.append(p)
+                    p.start()
+                for proc in jobs:
+                    proc.join()
+                print (return_dict.values())
+                assert False
+                
     
-    ## TODO: write train code
-
-#    for j, param in enumerate(controller.agent_trainable.parameters()):
-#        print param, j
-#    assert False
-
-    for i in range(50008):
-
-        loss = controller.run()
-
-#        for j, param in enumerate(controller.agent_trainable.parameters()):
-#            print j
-#            print param
-        if i % 100 == 0:
-            print "EPOCH IS: ", i, " and loss is: ", loss.data[0]
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-    
-#        for j, param in enumerate(controller.agent_trainable.parameters()):
-#            print j
-#            print param
-        #assert False
 
 if __name__ == "__main__":
     main()

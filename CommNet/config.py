@@ -33,4 +33,4 @@ class RuntimeConfig:
         self.dropout = 0 if 'dropout' not in args else args['dropout']
 
         self.env = "Levers" if 'env' not in args else args['env']
-
+        self.is_threaded = True if 'is_threaded' not in args else args['is_threaded']
