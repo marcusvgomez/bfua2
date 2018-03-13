@@ -115,7 +115,7 @@ def main():
         loss, reward = controller.run()
         print loss
         loss_list.append(loss.data[0])
-        reward_list.append(reward.data[0])
+        reward_list.append(reward)
 
         if i % 100 == 0:
             print "EPOCH IS: ", i, " and loss is: ", loss.data[0], "reward is: ", reward
@@ -130,6 +130,7 @@ def main():
     np.save(loss_name, np.array(loss_list))
     np.save(reward_name, np.array(reward_list))
     plot_loss(loss_list)
+    plt.clf()
     plot_loss(reward_list, ylabel = 'reward', typing = 'Reward_')
     
 
