@@ -89,7 +89,7 @@ class Controller:
         
         return self.compute_loss(reward, action_list, advantage), reward.mean()
 
-    def make_deterministic_graph(self, graph_type = 'connected_2_1'):
+    def make_deterministic_graph(self, graph_type = 'connected_2_2'):
         sparse_map = {}
         if graph_type == 'cycle':
             for i in range(self.A):
@@ -108,8 +108,10 @@ class Controller:
             sparse_map = {0: [1, 2], 1: [0, 2], 2: [0, 1], 3: [], 4: []}
         elif graph_type == "connected_4":
             sparse_map = {0: [1], 1: [0], 2: [], 3: [], 4: []}
-        elif: graph_type == "connected_2_1":
-            sparse_map. = {0:[1, 2, 3], 1:[0, 2, 3], 3: [0, 1, 2], 4:[]}
+        elif graph_type == "connected_2_1":
+            sparse_map = {0:[1, 2, 3], 1:[0, 2, 3], 2: [0, 1, 3], 3: [0, 1, 2], 4:[]}
+        elif graph_type == "connected_2_2":
+            sparse_map = {0: [1, 2], 1: [0, 2], 2: [0, 1], 3: [4], 4:[3]}
         else:
             assert False
         print sparse_map
