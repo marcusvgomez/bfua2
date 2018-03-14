@@ -104,6 +104,8 @@ class Controller:
         #sorry this is hard-coded, don't want to deal with this 
         elif graph_type == "connected_3_1":
             sparse_map = {0: [1], 1: [0], 2:[3], 3:[2], 4:[]}
+        elif graph_type == "connected_3_2":
+            sparse_map = {0: [1, 2], 1: [0, 2], 2: [0, 1], 3: [], 4: []}
         else:
             assert False
         print sparse_map
