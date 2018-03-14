@@ -19,9 +19,12 @@ class Controller:
         self.minibatch_size = 64
         self.agent = agent
         self.use_cuda = True
-        self.is_supervised = False
+        self.is_supervised = True
         self.sparse_communication = False
         self.deterministic_sparse_communication = True
+
+        self.use_graphs = True
+
         self.num_comm_channels = 3
 
         self.agent_trainable = self.agent(num_agents = self.M, num_actions = self.A, 
@@ -86,10 +89,30 @@ class Controller:
         
         return self.compute_loss(reward, action_list, advantage), reward.mean()
 
+    def make_deterministic_graph(self, graph_type = 'linear'):
+        sparse_map = {}
+        if graph_type == 'cycle':
+            for i in range(self.A):
+                if i == 0: sparse_map[i] = np.array([self.A-1, i+1])
+                elif i == self.A-1: sparse_map[i] = np.array([i-1, 0])
+                else: sparse_map[i] = np.array([i-1, i+1])
+        elif graph_type == 'linear':
+            for i in range(self.A):
+                if i == 0: sparse_map[i] = np.array([i+1])
+                elif i == self.A-1: sparse_map[i] = np.array([i-1])
+                else: sparse_map[i] = np.array([i-1, i+1])
+        else:
+            assert False
+        map_list = [sparse_map for _ in range(self.minibatch_size)]
+        return map_list
+
     #makese the sparse matrix that i 
     def make_sparse_matrix(self):
         #this code is really ratchet, but it has to do
-        self.sparse_map = self.make_sparse_pairing(torch.Tensor([[i for i in range(self.A)] for _ in range(self.minibatch_size)]),
+        if self.use_graphs:
+            self.sparse_map = self.make_deterministic_graph()
+        else:
+            self.sparse_map = self.make_sparse_pairing(torch.Tensor([[i for i in range(self.A)] for _ in range(self.minibatch_size)]),
                                                    self.num_comm_channels)
 
         update_comm = Variable(torch.zeros((self.minibatch_size, self.A, self.A)), requires_grad = True)
@@ -100,10 +123,11 @@ class Controller:
             curr_mapping = self.sparse_map[i]
             minibatch_agent_lever = curr_mapping.keys()
             for idx, agent_index in enumerate(curr_mapping):
+                num_comm_channels = len(curr_mapping[agent_index])
                 for num_channels, channel_index in enumerate(curr_mapping[agent_index]):
                     channel_index = int(channel_index)
                     channel_index = minibatch_agent_lever.index(channel_index)
-                    update_comm[i, idx, channel_index] = 1./self.num_comm_channels 
+                    update_comm[i, idx, channel_index] = 1./num_comm_channels
         return update_comm
 
     def make_sparse_pairing(self, states, num_channels):

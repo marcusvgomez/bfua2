@@ -99,7 +99,6 @@ class agent(nn.Module):
             state, self.sparse_map = inputs
         elif self.sparse_deterministic_communication:
             state, self.comm_update_matrix = inputs
-            print self.comm_update_matrix
         else:
             state = inputs
         init_hidden = self.stateEncoder(state)
@@ -189,10 +188,10 @@ class agent(nn.Module):
                     print "currmapping is: ", curr_mapping
                     print "agent index is: ", agent_index
                     assert False
-            print minibatch_agent_lever
-            print curr_mapping
-            print update_comm[i]
-            assert False
+            # print minibatch_agent_lever
+            # print curr_mapping
+            # print update_comm[i]
+            # assert False
         temp_comm = torch.bmm(update_comm, curr_hidden)/(num_channels+1)
         return temp_comm
 
