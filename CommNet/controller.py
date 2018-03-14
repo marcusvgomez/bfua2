@@ -19,7 +19,7 @@ class Controller:
         self.minibatch_size = 64
         self.agent = agent
         self.use_cuda = True
-        self.is_supervised = True
+        self.is_supervised = False
         self.sparse_communication = False
         self.deterministic_sparse_communication = True
 
@@ -89,7 +89,7 @@ class Controller:
         
         return self.compute_loss(reward, action_list, advantage), reward.mean()
 
-    def make_deterministic_graph(self, graph_type = 'linear'):
+    def make_deterministic_graph(self, graph_type = 'connected_3_1'):
         sparse_map = {}
         if graph_type == 'cycle':
             for i in range(self.A):
@@ -101,8 +101,12 @@ class Controller:
                 if i == 0: sparse_map[i] = np.array([i+1])
                 elif i == self.A-1: sparse_map[i] = np.array([i-1])
                 else: sparse_map[i] = np.array([i-1, i+1])
+        #sorry this is hard-coded, don't want to deal with this 
+        elif graph_type == "connected_3_1":
+            sparse_map = {0: [1], 1: [0], 2:[3], 3:[2], 4:[]}
         else:
             assert False
+        print sparse_map
         map_list = [sparse_map for _ in range(self.minibatch_size)]
         return map_list
 
