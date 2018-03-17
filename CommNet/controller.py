@@ -20,8 +20,10 @@ class Controller:
         self.agent = agent
         self.use_cuda = True
         self.is_supervised = False
-        self.sparse_communication = False
-        self.deterministic_sparse_communication = True
+        #the sparse_communication and deterministic_sparse_communication flags
+        #shouldn't ever be on at the same time 
+        self.sparse_communication = False #creates random graphs at every minibtach,epoch
+        self.deterministic_sparse_communication = True #creates static graph at the init used to train 
 
         self.use_graphs = True
 
@@ -89,6 +91,9 @@ class Controller:
         
         return self.compute_loss(reward, action_list, advantage), reward.mean()
 
+    #makes a deterministic graph be it cycle, linear, or any pairing
+    #it generates somethign called sparse_map
+    #this then populates every minibatch with an appropriate connectivity matrix
     def make_deterministic_graph(self, graph_type = 'connected_2_2'):
         sparse_map = {}
         if graph_type == 'cycle':
@@ -118,7 +123,7 @@ class Controller:
         map_list = [sparse_map for _ in range(self.minibatch_size)]
         return map_list
 
-    #makese the sparse matrix that i 
+    #makes the sparse matrix used to update the communication channels
     def make_sparse_matrix(self):
         #this code is really ratchet, but it has to do
         if self.use_graphs:
@@ -142,6 +147,9 @@ class Controller:
                     update_comm[i, idx, channel_index] = 1./num_comm_channels
         return update_comm
 
+    #randomly pairs up nodes up to num_channels for a node 
+    #directed graph
+    #at run time the agent will create the connectivity matrix
     def make_sparse_pairing(self, states, num_channels):
         assert (num_channels < self.A)
         agent_pairing = []
